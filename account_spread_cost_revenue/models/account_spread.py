@@ -7,7 +7,7 @@ import time
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import float_is_zero
 
@@ -215,7 +215,7 @@ class AccountSpread(models.Model):
     @api.depends("unposted_amount")
     def _compute_all_posted(self):
         for spread in self:
-            rounding = self.currency_id.rounding
+            rounding = spread.currency_id.rounding
             unposted = spread.unposted_amount
             spread.all_posted = float_is_zero(unposted, precision_rounding=rounding)
 
@@ -294,7 +294,7 @@ class AccountSpread(models.Model):
             lambda s: s.invoice_id and s.invoice_type != s.invoice_id.move_type
         ):
             raise ValidationError(
-                _("The Invoice Type does not correspond to the Invoice")
+                self.env._("The Invoice Type does not correspond to the Invoice")
             )
 
     @api.constrains("journal_id")
@@ -302,21 +302,23 @@ class AccountSpread(models.Model):
         for spread in self:
             moves = spread.mapped("line_ids.move_id").filtered("journal_id")
             if any(move.journal_id != spread.journal_id for move in moves):
-                err_msg = _("The Journal is not consistent with the account moves.")
+                err_msg = self.env._(
+                    "The Journal is not consistent with the account moves."
+                )
                 raise ValidationError(err_msg)
 
     @api.constrains("template_id", "invoice_type")
     def _check_template_invoice_type(self):
         for spread in self.filtered(lambda s: s.template_id.spread_type == "sale"):
             if spread.invoice_type in ["in_invoice", "in_refund"]:
-                err_msg = _(
+                err_msg = self.env._(
                     "The Spread Template (Sales) is not compatible "
                     "with selected invoice type"
                 )
                 raise ValidationError(err_msg)
         for spread in self.filtered(lambda s: s.template_id.spread_type == "purchase"):
             if spread.invoice_type in ["out_invoice", "out_refund"]:
-                err_msg = _(
+                err_msg = self.env._(
                     "The Spread Template (Purchases) is not compatible "
                     "with selected invoice type"
                 )
@@ -409,7 +411,7 @@ class AccountSpread(models.Model):
         invoice_type_selection = dict(
             self.fields_get(allfields=["invoice_type"])["invoice_type"]["selection"]
         )[self.invoice_type]
-        msg_body = _("Spread table '%s' created.") % invoice_type_selection
+        msg_body = self.env._("Spread table '%s' created.", invoice_type_selection)
         self.message_post(body=msg_body)
 
     def _get_number_of_periods(self, month_day):
@@ -516,7 +518,7 @@ class AccountSpread(models.Model):
         """Unlink the invoice line from the spread board"""
         self.ensure_one()
         if self.invoice_id.state != "draft":
-            msg = _("Cannot unlink invoice lines if the invoice is validated")
+            msg = self.env._("Cannot unlink invoice lines if the invoice is validated")
             raise UserError(msg)
         self._action_unlink_invoice_line()
 
@@ -527,35 +529,37 @@ class AccountSpread(models.Model):
 
     def _message_post_unlink_invoice_line(self):
         for spread in self:
-            inv_link = "<a href=# data-oe-model=account.move data-oe-id=%d>%s</a>" % (
-                spread.invoice_id.id,
-                _("Invoice"),
+            inv_link = Markup(
+                "<a href=# data-oe-model=account.move data-oe-id=%d>%s</a>"
+            ) % (spread.invoice_id.id, self.env._("Invoice"))
+            msg_body = self.env._(
+                "Unlinked invoice line '%(spread_line_name)s' (view %(inv_link)s).",
+                spread_line_name=spread.invoice_line_id.name,
+                inv_link=inv_link,
             )
-            msg_body = _(
-                "Unlinked invoice line '%(spread_line_name)s' (view %(inv_link)s)."
-            ) % {
-                "spread_line_name": spread.invoice_line_id.name,
-                "inv_link": inv_link,
-            }
-            spread.message_post(body=Markup(msg_body))
-            spread_link = (
-                "<a href=# data-oe-model=account.spread "
-                "data-oe-id=%d>%s</a>" % (spread.id, _("Spread"))
+            spread.message_post(body=msg_body)
+            spread_link = Markup(
+                "<a href=# data-oe-model=account.spread data-oe-id=%d>%s</a>"
+            ) % (spread.id, self.env._("Spread"))
+            msg_body = self.env._(
+                "Unlinked '%(spread_link)s' (invoice line %(inv_line)s).",
+                spread_link=spread_link,
+                inv_line=spread.invoice_line_id.name,
             )
-            msg_body = _("Unlinked '%(spread_link)s' (invoice line %(inv_line)s).") % {
-                "spread_link": spread_link,
-                "inv_line": spread.invoice_line_id.name,
-            }
-            spread.invoice_id.message_post(body=Markup(msg_body))
+            spread.invoice_id.message_post(body=msg_body)
 
-    def unlink(self):
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_linked_or_posted(self):
         if self.filtered(lambda s: s.invoice_line_id):
-            err_msg = _("Cannot delete spread(s) that are linked to an invoice line.")
-            raise UserError(err_msg)
+            raise UserError(
+                self.env._(
+                    "Cannot delete spread(s) that are linked to an invoice line."
+                )
+            )
         if self.mapped("line_ids.move_id").filtered(lambda m: m.state == "posted"):
-            err_msg = _("Cannot delete spread(s): there are posted Journal Entries.")
-            raise ValidationError(err_msg)
-        return super().unlink()
+            raise ValidationError(
+                self.env._("Cannot delete spread(s): there are posted Journal Entries.")
+            )
 
     def reconcile_spread_moves(self):
         for spread in self:
@@ -595,11 +599,18 @@ class AccountSpread(models.Model):
         if self.company_id.force_move_auto_post or self.move_line_auto_post:
             moves.with_context(**ctx).action_post()
 
-    @api.depends("debit_account_id.deprecated", "credit_account_id.deprecated")
+    @api.depends("debit_account_id.active", "credit_account_id.active")
     def _compute_deprecated_accounts(self):
+        # Since 19.0, accounts are no longer deprecated, but archived
         for spread in self:
-            spread.is_debit_account_deprecated = spread.debit_account_id.deprecated
-            spread.is_credit_account_deprecated = spread.credit_account_id.deprecated
+            debit_account = spread.debit_account_id
+            credit_account = spread.credit_account_id
+            spread.is_debit_account_deprecated = bool(
+                debit_account and not debit_account.active
+            )
+            spread.is_credit_account_deprecated = bool(
+                credit_account and not credit_account.active
+            )
 
     def open_posted_view(self):
         action_name = "account_spread_cost_revenue.action_account_moves_all_spread"

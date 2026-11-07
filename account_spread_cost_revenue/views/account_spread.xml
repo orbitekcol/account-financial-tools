@@ -124,7 +124,7 @@
                             <field
                                 name="debit_account_id"
                                 required="1"
-                                domain="[('deprecated', '=', False), ('account_type', 'not in', ('asset_cash','liability_credit_card')), ('internal_group', '!=', 'off_balance')]"
+                                domain="[('account_type', 'not in', ('asset_cash','liability_credit_card')), ('internal_group', '!=', 'off_balance')]"
                                 readonly="invoice_line_id"
                             />
                             <span
@@ -132,7 +132,7 @@
                                 colspan="2"
                                 invisible="not is_debit_account_deprecated"
                             >
-                                  This account in deprecated! The reconciliation will be NOT possible.
+                                  This account is archived! The reconciliation will NOT be possible.
                             </span>
                         </group>
                         <group name="credits">
@@ -188,7 +188,7 @@
                             <field
                                 name="credit_account_id"
                                 required="1"
-                                domain="[('deprecated', '=', False), ('account_type', 'not in', ('asset_cash','liability_credit_card')), ('internal_group', '!=', 'off_balance')]"
+                                domain="[('account_type', 'not in', ('asset_cash','liability_credit_card')), ('internal_group', '!=', 'off_balance')]"
                                 readonly="invoice_line_id"
                             />
                             <span
@@ -196,7 +196,7 @@
                                 colspan="2"
                                 invisible="not is_credit_account_deprecated"
                             >
-                                  This account in deprecated! The reconciliation will be NOT possible.
+                                  This account is archived! The reconciliation will NOT be possible.
                             </span>
                         </group>
                     </group>

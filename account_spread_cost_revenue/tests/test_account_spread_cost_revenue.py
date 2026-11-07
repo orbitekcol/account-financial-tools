@@ -148,7 +148,7 @@ class TestAccountSpreadCostRevenue(common.TransactionCase):
         self.assertTrue(self.env.company.default_spread_revenue_journal_id)
         self.assertTrue(self.env.company.default_spread_expense_journal_id)
 
-        self.env.user.groups_id += self.env.ref("base.group_multi_company")
+        self.env.user.group_ids += self.env.ref("base.group_multi_company")
 
         spread_form = Form(self.env["account.spread"])
         spread_form.name = "test"

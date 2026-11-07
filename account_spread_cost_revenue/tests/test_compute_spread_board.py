@@ -564,8 +564,8 @@ class TestComputeSpreadBoard(common.TransactionCase):
 
     @mute_logger("odoo.models", "odoo.sql_db", "odoo.models.unlink")
     def test_15_compute_spread_board_line_account_deprecated(self):
-        self.spread.debit_account_id.deprecated = True
-        self.assertTrue(self.spread.debit_account_id.deprecated)
+        self.spread.debit_account_id.active = False
+        self.assertFalse(self.spread.debit_account_id.active)
 
         self.assertTrue(self.spread.is_debit_account_deprecated)
         with lower_logging(25, logging.INFO):
@@ -576,8 +576,8 @@ class TestComputeSpreadBoard(common.TransactionCase):
 
     @mute_logger("odoo.models", "odoo.sql_db", "odoo.models.unlink")
     def test_16_compute_spread_board_line_account_deprecated(self):
-        self.spread.credit_account_id.deprecated = True
-        self.assertTrue(self.spread.credit_account_id.deprecated)
+        self.spread.credit_account_id.active = False
+        self.assertFalse(self.spread.credit_account_id.active)
 
         self.assertTrue(self.spread.is_credit_account_deprecated)
         with lower_logging(25, logging.INFO):
@@ -590,8 +590,8 @@ class TestComputeSpreadBoard(common.TransactionCase):
     def test_17_compute_spread_board_line_account_deprecated(self):
         with lower_logging(25, logging.INFO):
             self.spread.compute_spread_board()
-        self.spread.debit_account_id.deprecated = True
-        self.assertTrue(self.spread.debit_account_id.deprecated)
+        self.spread.debit_account_id.active = False
+        self.assertFalse(self.spread.debit_account_id.active)
 
         for line in self.spread.line_ids:
             self.assertFalse(line.move_id)
